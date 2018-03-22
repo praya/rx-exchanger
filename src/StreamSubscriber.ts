@@ -1,61 +1,59 @@
 import "rxjs/add/operator/takeUntil";
-import { Observable }  from "rxjs/Observable";
-import { Subject }     from "rxjs/Subject";
-import { Subscriber }  from "rxjs/Subscriber";
+import { Observable } from "rxjs/Observable";
+import { Subject } from "rxjs/Subject";
+import { Subscriber } from "rxjs/Subscriber";
 import { CommandType } from "./api/CommandType";
-import { IEvent }       from "./api/IEvent";
-import { EventType }   from "./api/EventType";
-import { WsConnection }  from "./WSConnection";
-import { Subscribers }  from "./Subscribers";
-import { WrappedConnection } from "./WrappedConnection";
-import { IConnection } from "./IConnection";
+import { EventType } from "./api/EventType";
+import { ICommand } from "./api/ICommand";
+import { IEvent } from "./api/IEvent";
+import { IMessage } from "./api/IMessage";
+import { IGate } from "./IGate";
+import { Subscribers } from "./Subscribers";
 
+export class StreamSubscriber<T extends IGate> {
 
-export class StreamSubscriber<T extends IConnection> {
+    private readonly subscribers: { [streamName: string]: Subscribers<any>; } = {};
+    private readonly destroy: Subject<void> = new Subject<void>();
+    private readonly gate: T;
 
-    public readonly subscribers: { [streamName: string]: Subscribers<any>; } = {};
+    constructor(gate: T) {
 
-    private readonly destroy$: Subject<void> = new Subject<void>();
-    private readonly connection: WrappedConnection<T>;
-
-    constructor(connection: WrappedConnection<T>) {
-        
-        this.connection = connection;
+        this.gate = gate;
 
         // todo: unsubscribe
-        this.connection.event$.takeUntil(this.destroy$).subscribe((event: IEvent) => {
-            this.eventHandler(event);
-        }, (error: any) => {
-            // todo: handle error
-        }, () => {
-            // todo: handle complete
-        });
+
+        this.gate.message
+            .filter((message: IMessage) => message && message.event instanceof Object)
+            .map((message: IMessage) => message.event)
+            .takeUntil(this.destroy).subscribe((event: IEvent) => {
+                this.eventHandler(event);
+            }, (error: any) => {
+                // todo: handle error
+            }, () => {
+                // todo: handle complete
+            });
 
     }
 
-    public pull<T>(streamName: string): Observable<T> {
+    public pull<K>(streamName: string): Observable<K> {
 
-        return new Observable((subscriber: Subscriber<T>) => {
+        return new Observable((subscriber: Subscriber<K>) => {
             this.registerSubscriber(streamName, subscriber);
             return () => this.unregisterSubscriber(streamName, subscriber);
         });
 
     }
 
-    public destroy(): void {
-        // todo: implement this method
-    }
-
-    private registerSubscriber<T>(stream: string, subscriber: Subscriber<T>): void {
+    private registerSubscriber<K>(stream: string, subscriber: Subscriber<K>): void {
         if (this.subscribers[stream] && this.subscribers[stream].length > 0) {
             this.subscribers[stream].add(subscriber);
         } else {
-            this.subscribers[stream] = new Subscribers<T>(subscriber);
+            this.subscribers[stream] = new Subscribers<K>(subscriber);
             this.openStream(stream);
         }
     }
 
-    private unregisterSubscriber<T>(stream: string, subscriber: Subscriber<T>): void {
+    private unregisterSubscriber<K>(stream: string, subscriber: Subscriber<K>): void {
         if (this.subscribers[stream]) {
             this.subscribers[stream].remove(subscriber);
             if (this.subscribers[stream].length === 0) {
@@ -103,18 +101,22 @@ export class StreamSubscriber<T extends IConnection> {
 
     }
 
-    private openStream(stream: string): void {
-        this.connection.sendCommand({
-            stream: stream,
-            type: CommandType.OpenStream,
+    private openStream(streamName: string): void {
+        this.sendCommand({
+            stream: streamName,
+            type: CommandType.Open,
         });
     }
 
-    private closeStream(stream: string): void {
-        this.connection.sendCommand({
-            stream: stream,
-            type: CommandType.CloseStream,
+    private closeStream(streamName: string): void {
+        this.sendCommand({
+            stream: streamName,
+            type: CommandType.Close,
         });
+    }
+
+    private sendCommand(command: ICommand): void {
+        this.gate.sendMessage({ command });
     }
 
 }

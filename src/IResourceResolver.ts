@@ -1,11 +1,8 @@
 import { Observable } from "rxjs/Observable";
-import { IConnection } from "./IConnection";
-import { WrappedConnection } from "./WrappedConnection";
+import { IGate } from "./IGate";
 
-export type IResolveResource = <T extends IConnection, K>(resourceName: string, connection: WrappedConnection<T>) => Observable<K> | undefined;
+export interface IResourceResolver<T extends IGate> {
 
-export interface IResourceResolver {
-
-    resolveResource: IResolveResource;
+    resolveResource<K>(resourceName: string, gate: T): Observable<K> | undefined;
 
 }

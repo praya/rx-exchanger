@@ -1,33 +1,35 @@
 import { Observable } from "rxjs/Observable";
 import { Subscriber } from "rxjs/Subscriber";
 import { CommandType } from "./api/CommandType";
+import { EventType } from "./api/EventType";
 import { ICommand } from "./api/ICommand";
 import { IEvent } from "./api/IEvent";
 import { IMessage } from "./api/IMessage";
-import { EventType } from "./api/EventType";
+import { IGate } from "./IGate";
 import { IResourceResolver } from "./IResourceResolver";
-import { IConnection } from "./IConnection";
-import { WrappedConnection } from "./WrappedConnection";
 
-
-export class StreamProvider<T extends IConnection> {
+export class StreamProvider<T extends IGate> {
 
     public transmitErrors: boolean;
-    public readonly close$: Observable<any>;
-    public readonly error$: Observable<any>;
+    public readonly closed: Observable<any>;
+    public readonly error: Observable<any>;
 
-    private readonly connection: WrappedConnection<T>;
-    private readonly resourceResolver?: IResourceResolver;
+    private readonly gate: T;
+    private readonly resourceResolver?: IResourceResolver<T>;
     private readonly subscriptions: { [streamName: string]: any; } = {};
 
-    constructor(connection: WrappedConnection<T>, resourceResolver: IResourceResolver, transmitErrors: boolean = false) {
-        this.connection = connection;
+    constructor(gate: T, resourceResolver: IResourceResolver<T>, transmitErrors: boolean = false) {
+        this.gate = gate;
         this.resourceResolver = resourceResolver;
         this.transmitErrors = transmitErrors;
-        this.close$ = this.connection.close$;
-        this.error$ = this.connection.error$;
-        
-        this.connection.command$.subscribe(this.processCommand.bind(this));
+        this.closed = this.gate.closed;
+        this.error = this.gate.error;
+
+        this.gate.message
+            .filter((message: IMessage) => message && message.command instanceof Object)
+            .map((message: IMessage) => message.command)
+            .subscribe(this.processCommand.bind(this));
+
     }
 
     public closeAllStreams(): void {
@@ -38,10 +40,10 @@ export class StreamProvider<T extends IConnection> {
 
     private processCommand(command: ICommand): void {
         switch (command.type) {
-            case CommandType.OpenStream:
+            case CommandType.Open:
                 this.openStream(command.stream);
                 break;
-            case CommandType.CloseStream:
+            case CommandType.Close:
                 this.closeStream(command.stream);
                 break;
         }
@@ -51,7 +53,8 @@ export class StreamProvider<T extends IConnection> {
         if (this.subscriptions[streamName]) {
             this.emitStreamIsAlreadyOpened(streamName);
         } else {
-            const resource: Observable<any> | undefined = this.resourceResolver.resolveResource(streamName, this.connection);
+            const resource: Observable<any> | undefined = this.resourceResolver
+                .resolveResource(streamName, this.gate);
             if (resource) {
                 this.emitStreamOpen(streamName);
                 this.startStreaming(streamName, resource);
@@ -83,54 +86,58 @@ export class StreamProvider<T extends IConnection> {
     }
 
     private emitStreamOpen(streamName: string): void {
-        this.connection.emitEvent({
+        this.emitEvent({
             stream: streamName,
             type: EventType.Opened,
         });
     }
 
     private emitStreamNoResource(streamName: string): void {
-        this.connection.emitEvent({
+        this.emitEvent({
             stream: streamName,
             type: EventType.ResourceNotFound,
         });
     }
 
     private emitStreamIsAlreadyOpened(streamName: string): void {
-        this.connection.emitEvent({
+        this.emitEvent({
             stream: streamName,
             type: EventType.AlreadyOpened,
         });
     }
 
     private emitStreamClose(streamName: string): void {
-        this.connection.emitEvent({
+        this.emitEvent({
             stream: streamName,
             type: EventType.Closed,
         });
     }
 
     private emitStreamNext(streamName: string, value: any): void {
-        this.connection.emitEvent({
+        this.emitEvent({
+            payload: value,
             stream: streamName,
             type: EventType.Next,
-            payload: value,
         });
     }
 
     private emitStreamError(streamName: string, error: any): void {
-        this.connection.emitEvent({
+        this.emitEvent({
+            payload: error,
             stream: streamName,
             type: EventType.Error,
-            payload: error,
         });
     }
 
     private emitStreamComplete(streamName: string): void {
-        this.connection.emitEvent({
+        this.emitEvent({
             stream: streamName,
             type: EventType.Complete,
         });
+    }
+
+    private emitEvent(event: IEvent): void {
+        this.gate.sendMessage({ event });
     }
 
 }

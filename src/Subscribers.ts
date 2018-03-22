@@ -1,6 +1,5 @@
 import { Subscriber } from "rxjs/Subscriber";
 
-
 export class Subscribers<T> extends Array<Subscriber<T>> {
 
     public add(subscriber: Subscriber<T>): void {

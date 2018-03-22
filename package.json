@@ -5,8 +5,20 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "test": "mocha",
-    "test-cov": "istanbul cover _mocha"
+    "test": "nyc mocha "
+  },
+  "nyc": {
+    "include": [
+      "src/**/*.ts"
+    ],
+    "extension": [
+      ".ts"
+    ],
+    "reporter": [
+      "html"
+    ],
+    "temp-directory": "./coverage/.nyc_output",
+    "instrument": true
   },
   "author": "",
   "license": "ISC",

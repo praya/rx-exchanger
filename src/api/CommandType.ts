@@ -1,4 +1,4 @@
 export enum CommandType {
-    OpenStream = "open-stream",
-    CloseStream = "close-stream",
+    Open = "open",
+    Close = "close",
 }
