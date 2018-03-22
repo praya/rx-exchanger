@@ -1,5 +1,5 @@
 {
-  "name": "rx-gate",
+  "name": "rx-exchanger",
   "version": "0.0.0",
   "description": "client/server library for reactive data streams through websocket connection",
   "main": "index.js",
