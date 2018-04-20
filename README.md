@@ -1,3 +1,3 @@
 # rx-exchanger
 
-[Sketch](https://imgur.com/download/MpdXGEZ "Sketch")
+![Sketch](https://imgur.com/download/MpdXGEZ)
